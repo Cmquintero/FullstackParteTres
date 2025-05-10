@@ -1,3 +1,4 @@
+require('dotenv').config()
 const express = require("express");
 const app = express();
 app.use(express.json());
@@ -7,7 +8,7 @@ app.use(express.static("dist"))
 const cors = require('cors')
 app.use(cors())
 app.use(express.static('dist'))
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT
 morgan.token("request-body", (request) => {
   return request.method === "POST" ? JSON.stringify(request.body) : "";
 });
@@ -17,6 +18,22 @@ app.use(
   )
 );
 
+const url = process.env.MONGODB_URI
+
+const mongoose = require('mongoose')
+const Person = require('./models/person')
+const password = process.argv[2]
+const name = process.argv[3]
+const number = process.argv[4]
+
+// DO NOT SAVE YOUR PASSWORD TO GITHUB!!
+
+
+mongoose.set('strictQuery', false)
+mongoose.connect(url)
+
+
+/*
 let notes = [
   {
     id: 1,
@@ -49,6 +66,7 @@ let notes = [
     number:"25/24/25",
   },
 ];
+*/
 
 const requestLogger = (request, response, next) => {
   console.log('Method:', request.method)
@@ -60,10 +78,13 @@ const requestLogger = (request, response, next) => {
 
 app.use(requestLogger)
 
-app.get("/api/persons/", (request, response) => {
-  response.send(notes);
-});
+app.get('/api/persons', (request, response) => {
+  Person.find({}).then(persons => {
+    response.json(persons)
+  })
+})
 
+/*
 const info = () => {
   const total = notes.length;
   const date = new Date();
@@ -104,37 +125,26 @@ app.delete("/api/notes/:id", (request, response) => {
 const generateId = () => {
   const maxId = notes.length > 0 ? Math.max(...notes.map((n) => n.id)) : 0;
   return maxId + 1;
-};
+};*/
 
 app.post("/api/persons", (request, response) => {
   const body = request.body;
-
-  if (!body.name || !body.number) {
-    return response.status(400).json({
-      error: "name or number missing",
-    });
+if (!body.name || !body.number) {
+  return response.status(400).json({ error: "name or number missing" });
+}
+Person.findOne({ name: body.name }).then(existingPerson => {
+  if (existingPerson) {
+    return response.status(400).json({ error: "The name already exists in the database" });
   }
-  if (notes.some(note => note.name === body.name)) {
-    return response.status(400).json({
-      error: "The name has been exist in the list"
-    }); //metodo para el manejo de errores 
-  }
-  const generateRandomId = () => {
-    let id
-    do {
-      id = Math.round(Math.random() * 1000000)//redonde ya que intente usar el ceil pero falle sin pensar que debia usar era 999999 y use el floor pero me parecia poco util decir si hacia arriba o a abajo
-    } while (notes.some(n => n.id === id))
-    return id
-  }
-  const note = {
-    id: generateRandomId(),
+  const person = new Person({
     name: body.name,
     number: body.number,
-  };
-  
-  notes = notes.concat(note);
+  });
 
-  response.json(note);
+  person.save().then(savedPerson => {
+    response.json(savedPerson);
+  });
+});
 });
 
 const unknownEndpoint = (request, response) => {
